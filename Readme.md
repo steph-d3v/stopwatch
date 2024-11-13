@@ -10,7 +10,7 @@ Le temps mesuré par le chronomètre est affiché en temps réel dans le Termina
 python3 stopwatch.py
 ```
 
-<img src="assets/stopwatch.png" width="600px" height="363px" alt="Démo">
+<img src="assets/stopwatch.gif" width="600px" height="363px" alt="Démo">
 
 
 [docstring]: https://www.docstring.fr
