@@ -69,20 +69,23 @@ class Timer:
 
 
 class App:
-    _instance = None  # singleton
-
-    def __new__(cls, *args: object, **kwargs: object):
-        if not cls._instance:
-            cls._instance = super().__new__(cls)
-        return cls._instance
-
+    _singleton = None
+    _initialized = False
     _running: bool
     _hue: int
     _timer: Timer
     _digits: tuple[tuple[int, ...], ...]
     _screen: curses.window
 
-    def __init__(self, screen: curses.window, *args: object, **kwargs: object):
+    def __new__(cls, screen: curses.window):
+        if not cls._singleton:
+            cls._singleton = super().__new__(cls)
+        return cls._singleton
+
+    def __init__(self, screen: curses.window):
+        if App._initialized:
+            return
+        App._initialized = True
         self._setup()
         self._unpack_digits()
         self._setup_screen(screen)
@@ -96,7 +99,10 @@ class App:
 
     def _unpack_digits(self):
         self._digits = tuple(
-            map(lambda n: tuple(int(n[j], 16) for j in range(5)), (DIGITS[i : i + 5] for i in range(0, len(DIGITS), 5)))
+            map(
+                lambda n: tuple(int(n[j], 16) for j in range(5)),
+                (DIGITS[i : i + 5] for i in range(0, len(DIGITS), 5)),
+            )
         )
 
     def _setup_screen(self, screen: curses.window):
@@ -118,8 +124,11 @@ class App:
         curses.init_pair(PALETTE_START_INDEX + 1, PALETTE_START_INDEX + 1, -1)
 
     def _set_hue(self, hue: int):
-        self._hue = hue
-        curses.init_color(PALETTE_START_INDEX, *(round(1000 * k) for k in hls2rgb(hue / 360, 0.6, 1)))
+        self._hue = hue % 360
+        curses.init_color(
+            PALETTE_START_INDEX,
+            *(round(1000 * c) for c in hls2rgb(self._hue / 359, 0.6, 1)),
+        )
 
     def _get_color(self, n: int) -> int:
         return curses.color_pair(PALETTE_START_INDEX + n)
@@ -145,20 +154,22 @@ class App:
 
     def _update(self):
         if self._timer.is_started:
-            self._set_hue((self._hue + 1) % 360)
+            self._set_hue(self._hue + 1)
 
+    # fmt: off
     def _draw(self):
         s, cs = f"{self._timer.elapsed_time:.2f}".split(".")
         ls, lcs = len(s), len(cs)
         h, w = self._screen.getmaxyx()
-        x, y = (w - 2 * (5 * (ls + lcs) + 3) - 1) // 2, (h - 8) // 2
+        x, y = (w - 2 * (5 * (ls + lcs) + 3) + 1) >> 1, (h - 8) >> 1
         self._screen.clear()
         self._draw_number(s, x, y)
         self._draw_number(cs, x + 10 * ls + 6, y)
         if self._timer.is_started or (int(time() * 2)) & 0b1:
             self._screen.addstr(y + 4, x + 10 * ls + 1, "  ", self._get_color(0))
-        self._screen.addstr(y + 7, (w - len(HELP)) // 2, HELP, self._get_color(1))
+        self._screen.addstr(y + 7, (w - len(HELP)) >> 1, HELP, self._get_color(1))
         self._screen.refresh()
+    # fmt: on
 
     def _draw_number(self, n: str, x: int, y: int):
         for i, c in enumerate(n):
@@ -168,7 +179,7 @@ class App:
         for i, line in enumerate(self._digits[n]):
             for j in range(4):
                 if line & (1 << (3 - j)):
-                    self._screen.addstr(y + i, x + 2 * j, "  ", self._get_color(0))
+                    self._screen.addstr(y + i, x + 2 * j, "  ", self._get_color(0))  # fmt: skip
 
 
 if __name__ == "__main__":
